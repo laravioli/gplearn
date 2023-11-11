@@ -24,7 +24,7 @@ from sklearn.utils import compute_sample_weight
 from sklearn.utils.validation import check_array, _check_sample_weight
 from sklearn.utils.multiclass import check_classification_targets
 
-from ._program import _Program
+from ._tree import _Tree
 from .fitness import _fitness_map, _Fitness
 from .functions import _function_map, _Function, sig1 as sigmoid
 from .utils import _partition_estimators
@@ -114,7 +114,7 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
                           'parent_idx': parent_index,
                           'parent_nodes': []}
 
-        program = _Program(function_set=function_set,
+        program = _Tree(function_set=function_set,
                            arities=arities,
                            init_depth=init_depth,
                            init_method=init_method,

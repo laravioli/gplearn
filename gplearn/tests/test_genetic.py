@@ -28,11 +28,15 @@ from sklearn.utils.validation import check_random_state
 from gplearn.genetic import SymbolicClassifier, SymbolicRegressor
 from gplearn.genetic import SymbolicTransformer
 from gplearn.fitness import weighted_pearson, weighted_spearman
-from gplearn._program import _Program
+from gplearn._program import _GeneticProgram
+from gplearn._graph import _Genotype, _Graph
+from gplearn._tree import _Tree
 from gplearn.fitness import _fitness_map
 from gplearn.functions import (add2, sub2, mul2, div2, sqrt1, log1, abs1, max2,
                                min2)
 from gplearn.functions import _Function
+
+cls_test = _Tree
 
 # load the diabetes dataset and randomly permute it
 rng = check_random_state(0)
@@ -93,19 +97,19 @@ def test_program_init_method():
     random_state = check_random_state(415)
     programs = []
     for _ in range(20):
-        programs.append(_Program(init_method='full',
+        programs.append(cls_test(init_method='full',
                                  random_state=random_state, **params))
     full_length = np.mean([gp.length_ for gp in programs])
     full_depth = np.mean([gp.depth_ for gp in programs])
     programs = []
     for _ in range(20):
-        programs.append(_Program(init_method='half and half',
+        programs.append(cls_test(init_method='half and half',
                                  random_state=random_state, **params))
     hnh_length = np.mean([gp.length_ for gp in programs])
     hnh_depth = np.mean([gp.depth_ for gp in programs])
     programs = []
     for _ in range(20):
-        programs.append(_Program(init_method='grow',
+        programs.append(cls_test(init_method='grow',
                                  random_state=random_state, **params))
     grow_length = np.mean([gp.length_ for gp in programs])
     grow_depth = np.mean([gp.depth_ for gp in programs])
@@ -132,17 +136,17 @@ def test_program_init_depth():
     random_state = check_random_state(415)
     programs = []
     for _ in range(20):
-        programs.append(_Program(init_method='full',
+        programs.append(cls_test(init_method='full',
                                  random_state=random_state, **params))
     full_depth = np.bincount([gp.depth_ for gp in programs])
     programs = []
     for _ in range(20):
-        programs.append(_Program(init_method='half and half',
+        programs.append(cls_test(init_method='half and half',
                                  random_state=random_state, **params))
     hnh_depth = np.bincount([gp.depth_ for gp in programs])
     programs = []
     for _ in range(20):
-        programs.append(_Program(init_method='grow',
+        programs.append(cls_test(init_method='grow',
                                  random_state=random_state, **params))
     grow_depth = np.bincount([gp.depth_ for gp in programs])
 
@@ -170,16 +174,16 @@ def test_validate_program():
                sqrt1, 2]
 
     # This one should be fine
-    _ = _Program(function_set, arities, init_depth, init_method, n_features,
+    _ = cls_test(function_set, arities, init_depth, init_method, n_features,
                  const_range, metric, p_point_replace, parsimony_coefficient,
                  random_state, program=test_gp)
 
     # Now try a couple that shouldn't be
-    assert_raises(ValueError, _Program, function_set, arities, init_depth,
+    assert_raises(ValueError, cls_test, function_set, arities, init_depth,
                   init_method, n_features, const_range, metric,
                   p_point_replace, parsimony_coefficient, random_state,
                   program=test_gp[:-1])
-    assert_raises(ValueError, _Program, function_set, arities, init_depth,
+    assert_raises(ValueError, cls_test, function_set, arities, init_depth,
                   init_method, n_features, const_range, metric,
                   p_point_replace, parsimony_coefficient, random_state,
                   program=test_gp + [1])
@@ -201,7 +205,7 @@ def test_print_overloading():
 
     test_gp = [mul2, div2, 8, 1, sub2, 9, .5]
 
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
 
     orig_stdout = sys.stdout
     try:
@@ -217,7 +221,7 @@ def test_print_overloading():
 
     # Test with feature names
     params['feature_names'] = [str(n) for n in range(10)]
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
 
     orig_stdout = sys.stdout
     try:
@@ -248,7 +252,7 @@ def test_export_graphviz():
 
     # Test for a small program
     test_gp = [mul2, div2, 8, 1, sub2, 9, .5]
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
     output = gp.export_graphviz()
     tree = 'digraph program {\n' \
            'node [style=filled]\n' \
@@ -265,14 +269,14 @@ def test_export_graphviz():
 
     # Test with feature names
     params['feature_names'] = [str(n) for n in range(10)]
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
     output = gp.export_graphviz()
     tree = tree.replace('X', '')
     assert(output == tree)
 
     # Test with fade_nodes
     params['feature_names'] = None
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
     output = gp.export_graphviz(fade_nodes=[0, 1, 2, 3])
     tree = 'digraph program {\n' \
            'node [style=filled]\n' \
@@ -289,7 +293,7 @@ def test_export_graphviz():
 
     # Test a degenerative single-node program
     test_gp = [1]
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
     output = gp.export_graphviz()
     tree = 'digraph program {\n' \
            'node [style=filled]\n' \
@@ -329,7 +333,7 @@ def test_execute():
     # Test for a small program
     test_gp = [mul2, div2, 8, 1, sub2, 9, .5]
     X = np.reshape(random_state.uniform(size=50), (5, 10))
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
     result = gp.execute(X)
     expected = [-0.19656208, 0.78197782, -1.70123845, -0.60175969, -0.01082618]
     assert_array_almost_equal(result, expected)
@@ -351,7 +355,7 @@ def test_all_metrics():
 
     # Test for a small program
     test_gp = [mul2, div2, 8, 1, sub2, 9, .5]
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
     X = np.reshape(random_state.uniform(size=50), (5, 10))
     y = random_state.uniform(size=5)
     sample_weight = np.ones(5)
@@ -381,7 +385,7 @@ def test_get_subtree():
 
     # Test for a small program
     test_gp = [mul2, div2, 8, 1, sub2, 9, .5]
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
 
     self_test = gp.get_subtree(check_random_state(0))
     external_test = gp.get_subtree(check_random_state(0), test_gp)
@@ -407,7 +411,7 @@ def test_genetic_operations():
     test_gp = [mul2, div2, 8, 1, sub2, 9, .5]
     donor = [add2, 0.1, sub2, 2, 7]
 
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
 
     expected = ['mul', 'div', 8, 1, 'sub', 9, 0.5]
     assert([f.name if isinstance(f, _Function) else f
@@ -1179,7 +1183,7 @@ def test_indices():
               'parsimony_coefficient': 0.1}
     random_state = check_random_state(415)
     test_gp = [mul2, div2, 8, 1, sub2, 9, .5]
-    gp = _Program(random_state=random_state, program=test_gp, **params)
+    gp = cls_test(random_state=random_state, program=test_gp, **params)
 
     assert_raises(ValueError, gp.get_all_indices)
     assert_raises(ValueError, gp._indices)

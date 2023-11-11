@@ -116,7 +116,7 @@ class _Tree(_GeneticProgram):
         The number of functions and terminals in the program.
 
     """
-
+    #To_discuss: change positional argument order : _GeneticProgram -> _Tree
     def __init__(self,
                  function_set,
                  arities,
@@ -128,22 +128,21 @@ class _Tree(_GeneticProgram):
                  p_point_replace,
                  parsimony_coefficient,
                  random_state,
-                 transformer=None,
-                 feature_names=None,
-                 program=None):
+                 * args, **kwargs):
 
-        self.function_set = function_set
+        super(_Tree, self).__init__(
+            function_set,
+            n_features,
+            metric,
+            p_point_replace,
+            parsimony_coefficient,
+            random_state, 
+            **kwargs)
+
         self.arities = arities
         self.init_depth = (init_depth[0], init_depth[1] + 1)
         self.init_method = init_method
-        self.n_features = n_features
         self.const_range = const_range
-        self.metric = metric
-        self.p_point_replace = p_point_replace
-        self.parsimony_coefficient = parsimony_coefficient
-        self.transformer = transformer
-        self.feature_names = feature_names
-        self.program = program
 
         if self.program is not None:
             if not self.validate_program():
@@ -151,13 +150,6 @@ class _Tree(_GeneticProgram):
         else:
             # Create a naive random program
             self.program = self.build_program(random_state)
-
-        self.raw_fitness_ = None
-        self.fitness_ = None
-        self.parents = None
-        self._n_samples = None
-        self._max_samples = None
-        self._indices_state = None
 
     def build_program(self, random_state):
         """Build a naive random program.

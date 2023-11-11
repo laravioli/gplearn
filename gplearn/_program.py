@@ -5,36 +5,28 @@ computer program. It is used for creating and evolving programs used in the
 :mod:`gplearn.genetic` module.
 """
 
+import numpy as np
 from abc import ABCMeta, abstractmethod
+from sklearn.utils.random import sample_without_replacement
+from .utils import check_random_state
 
 class _GeneticProgram(object, metaclass = ABCMeta):
 
     @abstractmethod
     def __init__(self,
                  function_set,
-                 arities,
-                 init_depth,
-                 init_method,
                  n_features,
-                 const_range,
                  metric,
                  p_point_replace,
                  parsimony_coefficient,
                  random_state,
-                 n_inputs = None,
-                 n_cols = None,
-                 n_rows = None,
-                 n_outputs = None,
                  transformer = None,
                  feature_names = None,
-                 program=  None):
+                 program =  None,
+                 **kwargs):
 
         self.function_set = function_set
-        self.arities = arities
-        self.init_depth = (init_depth[0], init_depth[1] + 1)
-        self.init_method = init_method
         self.n_features = n_features
-        self.const_range = const_range
         self.metric = metric
         self.p_point_replace = p_point_replace
         self.parsimony_coefficient = parsimony_coefficient

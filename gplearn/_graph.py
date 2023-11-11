@@ -27,139 +27,32 @@ class _Graph(_GeneticProgram):
     This is the underlying data-structure used by the public classes in the
     :mod:`gplearn.genetic` module. It should not be used directly by the user.
 
-    Parameters
-    ----------
-    function_set : list
-        A list of valid functions to use in the program.
-
-    arities : dict
-        A dictionary of the form `{arity: [functions]}`. The arity is the
-        number of arguments that the function takes, the functions must match
-        those in the `function_set` parameter.
-
-    init_depth : tuple of two ints
-        The range of tree depths for the initial population of naive formulas.
-        Individual trees will randomly choose a maximum depth from this range.
-        When combined with `init_method='half and half'` this yields the well-
-        known 'ramped half and half' initialization method.
-
-    init_method : str
-        - 'grow' : Nodes are chosen at random from both functions and
-          terminals, allowing for smaller trees than `init_depth` allows. Tends
-          to grow asymmetrical trees.
-        - 'full' : Functions are chosen until the `init_depth` is reached, and
-          then terminals are selected. Tends to grow 'bushy' trees.
-        - 'half and half' : Trees are grown through a 50/50 mix of 'full' and
-          'grow', making for a mix of tree shapes in the initial population.
-
-    n_features : int
-        The number of features in `X`.
-
-    const_range : tuple of two floats
-        The range of constants to include in the formulas.
-
-    metric : _Fitness object
-        The raw fitness metric.
-
-    p_point_replace : float
-        The probability that any given node will be mutated during point
-        mutation.
-
-    parsimony_coefficient : float
-        This constant penalizes large programs by adjusting their fitness to
-        be less favorable for selection. Larger values penalize the program
-        more which can control the phenomenon known as 'bloat'. Bloat is when
-        evolution is increasing the size of programs without a significant
-        increase in fitness, which is costly for computation time and makes for
-        a less understandable final result. This parameter may need to be tuned
-        over successive runs.
-
-    random_state : RandomState instance
-        The random number generator. Note that ints, or None are not allowed.
-        The reason for this being passed is that during parallel evolution the
-        same program object may be accessed by multiple parallel processes.
-
-    transformer : _Function object, optional (default=None)
-        The function to transform the output of the program to probabilities,
-        only used for the SymbolicClassifier.
-
-    feature_names : list, optional (default=None)
-        Optional list of feature names, used purely for representations in
-        the `print` operation or `export_graphviz`. If None, then X0, X1, etc
-        will be used for representations.
-
-    program : list, optional (default=None)
-        The flattened tree representation of the program. If None, a new naive
-        random tree will be grown. If provided, it will be validated.
-
-    Attributes
-    ----------
-    program : list
-        The flattened tree representation of the program.
-
-    raw_fitness_ : float
-        The raw fitness of the individual program.
-
-    fitness_ : float
-        The penalized fitness of the individual program.
-
-    oob_fitness_ : float
-        The out-of-bag raw fitness of the individual program for the held-out
-        samples. Only present when sub-sampling was used in the estimator by
-        specifying `max_samples` < 1.0.
-
-    parents : dict, or None
-        If None, this is a naive random program from the initial population.
-        Otherwise it includes meta-data about the program's parent(s) as well
-        as the genetic operations performed to yield the current program. This
-        is set outside this class by the controlling evolution loops.
-
-    depth_ : int
-        The maximum depth of the program tree.
-
-    length_ : int
-        The number of functions and terminals in the program.
-
     """
 
     def __init__(self,
                  function_set,
-                 arities,
-                 init_depth,
-                 init_method,
                  n_features,
-                 const_range,
                  metric,
                  p_point_replace,
                  parsimony_coefficient,
                  random_state,
-                 n_inputs,
                  n_cols,
                  n_rows,
                  n_outputs,
-                 transformer=None,
-                 feature_names=None,
-                 program=None):
+                 *args, **kwargs):
 
         super(_Graph, self).__init__(
-                 function_set,
-                 arities,
-                 init_depth,
-                 init_method,
-                 n_features,
-                 const_range,
-                 metric,
-                 p_point_replace,
-                 parsimony_coefficient,
-                 random_state,
-                 transformer=None,
-                 feature_names=None,
-                 program=None)
+            function_set,
+            n_features,
+            metric,
+            p_point_replace,
+            parsimony_coefficient,
+            random_state, 
+            **kwargs)
 
-        self.n_inputs = n_inputs
-        self.n_outputs = n_outputs
         self.n_cols = n_cols
         self.n_rows = n_rows
+        self.n_outputs = n_outputs
         self.n_nodes = n_cols * n_rows
 
         if self._genotype is not None:
@@ -170,13 +63,6 @@ class _Graph(_GeneticProgram):
             self._genotype = self.build_genotype(random_state)
             
         self.active_graph = self.build_active_graph()
-
-        self.raw_fitness_ = None
-        self.fitness_ = None
-        self.parents = None
-        self._n_samples = None
-        self._max_samples = None
-        self._indices_state = None
 
     @property
     def program(self): return self._genotype
@@ -211,15 +97,15 @@ class _Graph(_GeneticProgram):
         for c in range(self.n_cols):
             for _ in range(self.n_rows):
                 genotype_nodes['x'][gpos] = random_state.randint(\
-                    self.n_inputs + c * self.n_rows)
+                    self.n_features + c * self.n_rows)
                 genotype_nodes['y'][gpos] = random_state.randint(\
-                    self.n_inputs + c * self.n_rows)
+                    self.n_features + c * self.n_rows)
                 genotype_nodes['f'][gpos] = random_state.randint(\
                     len(self.function_set))
                 gpos = gpos + 1
 
         for o in range(self.n_outputs):
-            genotypes_outputs[o] = random_state.randint(self.n_inputs + self.n_nodes)
+            genotypes_outputs[o] = random_state.randint(self.n_features + self.n_nodes)
 
         return _Genotype(genotype_nodes, genotypes_outputs)
     
@@ -236,29 +122,27 @@ class _Graph(_GeneticProgram):
         nodes_to_evaluate = np.zeros(self.n_nodes, dtype=bool)
         p = 0
         while p < self.n_outputs:
-            if self._genotype.outputs[p] >= self.n_inputs:
-                nodes_to_evaluate[self._genotype.outputs[p] - self.n_inputs] = True
+            if self._genotype.outputs[p] >= self.n_features:
+                nodes_to_evaluate[self._genotype.outputs[p] - self.n_features] = True
             p = p + 1
         p = self.n_nodes - 1
         while p >= 0:
             if nodes_to_evaluate[p]:
                 for var in ['x', 'y']:
                     arg = self._genotype.nodes[var][p]
-                    if arg - self.n_inputs >= 0:
-                        nodes_to_evaluate[arg - self.n_inputs] = True
+                    if arg - self.n_features >= 0:
+                        nodes_to_evaluate[arg - self.n_features] = True
                 active_graph.append(p)
             p = p - 1
 
         return np.array(active_graph, dtype= int)
 
-#---validate---------------------------------------------------------------------#
-#---graph------------------------------------------------------------------------#
     def validate_genotype(self):
         """Check that the embedded genotype in the object is valid."""
         state = True
 
         for genotype_output in self._genotype.outputs:
-            state = genotype_output in range(self.n_inputs + self.n_nodes)
+            state = genotype_output in range(self.n_features + self.n_nodes)
             if not state:
                 break
         if state:
@@ -268,13 +152,11 @@ class _Graph(_GeneticProgram):
                         state = node_value in range(len(self.function_set))
                     else:
                         column = (i+1) % self.n_rows
-                        state = node_value in range(self.n_inputs + column * self.n_rows)
+                        state = node_value in range(self.n_features + column * self.n_rows)
                     if not state:
                         break
         return state
         
-#---str--------------------------------------------------------------------------#
-#---graph------------------------------------------------------------------------#
     def __str__(self):
         """Overloads `print` output of the genotype object graph."""
         nodes = self._genotype.nodes
@@ -290,19 +172,13 @@ class _Graph(_GeneticProgram):
 
         return output
 
-#---export_graphviz--------------------------------------------------------------#
-#---graph------------------------------------------------------------------------#
     def export_graphviz(self, fade_nodes=None):
       """work in progress"""
 
-#---length-----------------------------------------------------------------------#
-#---graph----------------------------------------------------------------------#
     def _length(self):
         """Calculates the lenght of the genotype."""
         return len(self._genotype)
 
-#---execute----------------------------------------------------------------------#
-#---graph------------------------------------------------------------------------#
     def execute(self, X):
         """Execute the program according to X | spec : max_arities = 2.
 
@@ -319,7 +195,7 @@ class _Graph(_GeneticProgram):
         """
 
         p= len(self.active_graph) - 1
-        nodes_output = np.zeros((self.n_nodes + self.n_inputs, X.shape[0]))
+        nodes_output = np.zeros((self.n_features + self.n_nodes, X.shape[0]))
         output = np.zeros((self.n_outputs, X.shape[0]))
 
         for i in range(X.shape[1]):
@@ -330,15 +206,16 @@ class _Graph(_GeneticProgram):
             for i, var in enumerate(['x','y']):
                 args[i] = nodes_output[self._genotype.nodes[var][self.active_graph[p]]]
             f = self.function_set[self._genotype.nodes['f'][self.active_graph[p]]]
-            nodes_output[self.active_graph[p] + self.n_inputs] = f(*args)
+            nodes_output[self.active_graph[p] + self.n_features] = f(*args[:f.arity])
             p = p - 1
 
         for i in range(self.n_outputs):
             output[i] = nodes_output[self._genotype.outputs[i]].copy()
 
         if self.n_outputs == 1:
-            output = np.squeeze(output)
-        return output
+            return np.squeeze(output)
+        else:
+            return output
     
     def fitness(self, parsimony_coefficient=None):
         """Evaluate the penalized fitness of the program according to X, y.
@@ -360,8 +237,6 @@ class _Graph(_GeneticProgram):
         penalty = parsimony_coefficient * len(self.active_graph) * self.metric.sign
         return self.raw_fitness_ - penalty
 
-#---mutation----------------------------------------------------------------#
-#---graph-------------------------------------------------------------------#
     def point_mutation(self, random_state):
         """Perform the point mutation operation on the genotype.
 
@@ -393,12 +268,12 @@ class _Graph(_GeneticProgram):
         # Apply mutation on genotype
         for gene in mutate_x:
             column = (gene + 1) % self.n_rows
-            replacement = random_state.randint(self.n_inputs + column * self.n_rows)
+            replacement = random_state.randint(self.n_features + column * self.n_rows)
             genotype.nodes['x'][gene] = replacement
         
         for gene in mutate_y:
             column = (gene + 1) % self.n_rows
-            replacement = random_state.randint(self.n_inputs + column * self.n_rows)
+            replacement = random_state.randint(self.n_features + column * self.n_rows)
             genotype.nodes['y'][gene] = replacement
 
         for gene in mutate_f:

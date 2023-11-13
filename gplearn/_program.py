@@ -41,6 +41,18 @@ class _GeneticProgram(object, metaclass = ABCMeta):
         self._max_samples = None
         self._indices_state = None
 
+    # abstract class attribute
+    p_crossover = None
+    p_subtree_mutation = None 
+    p_hoist_mutation = None
+    p_point_mutation = None
+
+    #class method
+    @classmethod
+    def validate_mutation_probs(cls):
+        pass
+
+    # abstract method
     @abstractmethod
     def __str__(self):
         pass
@@ -58,9 +70,14 @@ class _GeneticProgram(object, metaclass = ABCMeta):
         pass
 
     @abstractmethod
+    def reproduce(self):
+        pass
+
+    @abstractmethod
     def point_mutation(self, random_state):
         pass
 
+    # method
     def get_subtree(self, random_state, program=None):
         raise NotImplementedError
 

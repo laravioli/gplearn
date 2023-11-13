@@ -151,6 +151,13 @@ class _Tree(_GeneticProgram):
             # Create a naive random program
             self.program = self.build_program(random_state)
 
+    # CLASS ATTRIBUTE
+    p_crossover=0.9
+    p_subtree_mutation=0.01
+    p_hoist_mutation=0.01
+    p_point_mutation=0.01
+
+    # METHOD
     def build_program(self, random_state):
         """Build a naive random program.
 

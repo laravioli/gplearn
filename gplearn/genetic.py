@@ -25,6 +25,9 @@ from sklearn.utils.validation import check_array, _check_sample_weight
 from sklearn.utils.multiclass import check_classification_targets
 
 from ._tree import _Tree
+from ._graph import _Graph
+from ._program import _GeneticProgram
+
 from .fitness import _fitness_map, _Fitness
 from .functions import _function_map, _Function, sig1 as sigmoid
 from .utils import _partition_estimators
@@ -52,6 +55,10 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
     p_point_replace = params['p_point_replace']
     max_samples = params['max_samples']
     feature_names = params['feature_names']
+    program_cls = params['program_cls']
+    n_cols = params['n_cols']
+    n_rows = params['n_rows']
+    n_outputs = params['n_outputs']
 
     max_samples = int(max_samples * n_samples)
 
@@ -114,7 +121,7 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
                           'parent_idx': parent_index,
                           'parent_nodes': []}
 
-        program = _Tree(function_set=function_set,
+        program = program_cls(function_set=function_set,
                            arities=arities,
                            init_depth=init_depth,
                            init_method=init_method,
@@ -126,7 +133,10 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
                            parsimony_coefficient=parsimony_coefficient,
                            feature_names=feature_names,
                            random_state=random_state,
-                           program=program)
+                           program=program,
+                           n_cols = n_cols,
+                           n_rows = n_rows,
+                           n_outputs = n_outputs)
 
         program.parents = genome
 
@@ -179,10 +189,10 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                  transformer=None,
                  metric='mean absolute error',
                  parsimony_coefficient=0.001,
-                 p_crossover=0.9,
-                 p_subtree_mutation=0.01,
-                 p_hoist_mutation=0.01,
-                 p_point_mutation=0.01,
+                 p_crossover= None,
+                 p_subtree_mutation= None,
+                 p_hoist_mutation= None,
+                 p_point_mutation= None,
                  p_point_replace=0.05,
                  max_samples=1.0,
                  class_weight=None,
@@ -191,7 +201,11 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                  low_memory=False,
                  n_jobs=1,
                  verbose=0,
-                 random_state=None):
+                 random_state=None,
+                 n_cols = 4, 
+                 n_rows = 1, 
+                 n_outputs = 1,
+                 representation = 'tree'):
 
         self.population_size = population_size
         self.hall_of_fame = hall_of_fame
@@ -219,7 +233,11 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
         self.n_jobs = n_jobs
         self.verbose = verbose
         self.random_state = random_state
-
+        self.n_cols = n_cols
+        self.n_rows = n_rows
+        self.n_outputs = n_outputs
+        self.representation = representation
+        
     def _verbose_reporter(self, run_details=None):
         """A report of the progress of the evolution process.
 
@@ -283,6 +301,9 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
 
         """
         random_state = check_random_state(self.random_state)
+
+        #here we define our program Class
+        self._program_cls : _GeneticProgram  = _Tree if self.representation == 'tree' else _Graph
 
         # Check arrays
         if sample_weight is not None:
@@ -364,10 +385,28 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                 raise ValueError('Unsupported metric: %s' % self.metric)
             self._metric = _fitness_map[self.metric]
 
-        self._method_probs = np.array([self.p_crossover,
-                                       self.p_subtree_mutation,
-                                       self.p_hoist_mutation,
-                                       self.p_point_mutation])
+        #redefine mutation_probs inside _program_cls
+        if self.p_crossover is not None :
+            self._program_cls.p_crossover = self.p_crossover
+        if self.p_subtree_mutation is not None :
+            self._program_cls.p_subtree_mutation = self.p_subtree_mutation
+        if self.p_hoist_mutation is not None:
+            self._program_cls.p_hoist_mutation = self.p_hoist_mutation
+        if self.p_point_mutation is not None:
+            self._program_cls.p_point_mutation = self.p_point_mutation
+        
+        #call _program_cls method to check if user-define mutation_probs is correct
+        self._program_cls.validate_mutation_probs()
+
+        self._p_crossover = self._program_cls.p_crossover
+        self._p_subtree_mutation = self._program_cls.p_subtree_mutation
+        self._p_hoist_mutation = self._program_cls.p_hoist_mutation
+        self._p_point_mutation = self._program_cls.p_point_mutation
+
+        self._method_probs = np.array([self._p_crossover,
+                                       self._p_subtree_mutation,
+                                       self._p_hoist_mutation,
+                                       self._p_point_mutation])
         self._method_probs = np.cumsum(self._method_probs)
 
         if self._method_probs[-1] > 1:
@@ -391,6 +430,15 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
         if self.init_depth[0] > self.init_depth[1]:
             raise ValueError('init_depth should be in increasing numerical '
                              'order: (min_depth, max_depth).')
+
+        if(not isinstance(self.n_cols, int) or self.n_cols <= 0):
+            raise ValueError ('n_cols should be a  stricly positive integer')
+
+        if(not isinstance(self.n_rows, int) or self.n_rows <= 0):
+            raise ValueError ('n_rows should be a stricly positive integer')
+
+        if(not isinstance(self.n_outputs, int) or self.n_outputs <= 0):
+            raise ValueError ('n_outputs should be a stricly positive integer')
 
         if self.feature_names is not None:
             if self.n_features_in_ != len(self.feature_names):
@@ -425,6 +473,11 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
         params['function_set'] = self._function_set
         params['arities'] = self._arities
         params['method_probs'] = self._method_probs
+        params['program_cls'] = self._program_cls
+        params['p_crossover'] = self._p_crossover
+        params['p_subtree_mutation'] = self._p_subtree_mutation
+        params['p_hoist_mutation'] = self._p_hoist_mutation
+        params['p_point_mutation'] = self._p_point_mutation
 
         if not self.warm_start or not hasattr(self, '_programs'):
             # Free allocated memory, if any
@@ -809,7 +862,11 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
                  low_memory=False,
                  n_jobs=1,
                  verbose=0,
-                 random_state=None):
+                 random_state=None,
+                 n_cols = 4,
+                 n_rows = 1,
+                 n_outputs = 1,
+                 representation = 'tree'):
         super(SymbolicRegressor, self).__init__(
             population_size=population_size,
             generations=generations,
@@ -832,7 +889,11 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
             low_memory=low_memory,
             n_jobs=n_jobs,
             verbose=verbose,
-            random_state=random_state)
+            random_state=random_state,
+            n_cols = n_cols,
+            n_rows = n_rows,
+            n_outputs = n_outputs,
+            representation = representation)
 
     def __str__(self):
         """Overloads `print` output of the object to resemble a LISP tree."""
@@ -1099,7 +1160,11 @@ class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
                  low_memory=False,
                  n_jobs=1,
                  verbose=0,
-                 random_state=None):
+                 random_state=None,
+                 n_cols = 4,
+                 n_rows = 1,
+                 n_outputs = 1,
+                 representation = 'tree'):
         super(SymbolicClassifier, self).__init__(
             population_size=population_size,
             generations=generations,
@@ -1124,7 +1189,11 @@ class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
             low_memory=low_memory,
             n_jobs=n_jobs,
             verbose=verbose,
-            random_state=random_state)
+            random_state=random_state,
+            n_cols = n_cols,
+            n_rows = n_rows,
+            n_outputs = n_outputs,
+            representation = representation)
 
     def __str__(self):
         """Overloads `print` output of the object to resemble a LISP tree."""
@@ -1411,7 +1480,11 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  low_memory=False,
                  n_jobs=1,
                  verbose=0,
-                 random_state=None):
+                 random_state=None,
+                 n_cols = 4,
+                 n_rows = 1,
+                 n_outputs = 1,
+                 representation = 'tree'):
         super(SymbolicTransformer, self).__init__(
             population_size=population_size,
             hall_of_fame=hall_of_fame,
@@ -1436,7 +1509,11 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
             low_memory=low_memory,
             n_jobs=n_jobs,
             verbose=verbose,
-            random_state=random_state)
+            random_state=random_state,
+            n_cols = n_cols,
+            n_rows = n_rows,
+            n_outputs = n_outputs,
+            representation = representation)
 
     def __len__(self):
         """Overloads `len` output to be the number of fitted components."""

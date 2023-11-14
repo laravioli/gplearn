@@ -47,7 +47,7 @@ class _GeneticProgram(object, metaclass = ABCMeta):
     p_hoist_mutation : float
     p_point_mutation : float
 
-    #static method
+    # static method
     @staticmethod
     def validate_mutation_probs(p_crossover, p_subtree, p_hoist, p_point):
         pass

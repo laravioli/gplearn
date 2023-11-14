@@ -1594,3 +1594,4 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
 
         """
         return self.fit(X, y, sample_weight).transform(X)
+        

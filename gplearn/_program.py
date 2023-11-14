@@ -42,14 +42,14 @@ class _GeneticProgram(object, metaclass = ABCMeta):
         self._indices_state = None
 
     # abstract class attribute
-    p_crossover = None
-    p_subtree_mutation = None 
-    p_hoist_mutation = None
-    p_point_mutation = None
+    p_crossover : float
+    p_subtree_mutation : float
+    p_hoist_mutation : float
+    p_point_mutation : float
 
-    #class method
-    @classmethod
-    def validate_mutation_probs(cls):
+    #static method
+    @staticmethod
+    def validate_mutation_probs(p_crossover, p_subtree, p_hoist, p_point):
         pass
 
     # abstract method

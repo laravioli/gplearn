@@ -202,7 +202,7 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                  n_jobs=1,
                  verbose=0,
                  random_state=None,
-                 n_cols = 4, 
+                 n_cols = 12, 
                  n_rows = 1, 
                  n_outputs = 1,
                  representation = 'tree'):
@@ -302,8 +302,9 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
         """
         random_state = check_random_state(self.random_state)
 
-        #here we define our program Class
-        self._program_cls : _GeneticProgram  = _Tree if self.representation == 'tree' else _Graph
+        # Here we define our program Class
+        self._program_cls : _GeneticProgram  = _Tree if self.representation == 'tree' else\
+                                               _Graph
 
         # Check arrays
         if sample_weight is not None:
@@ -385,23 +386,21 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                 raise ValueError('Unsupported metric: %s' % self.metric)
             self._metric = _fitness_map[self.metric]
 
-        #redefine mutation_probs inside _program_cls
-        if self.p_crossover is not None :
-            self._program_cls.p_crossover = self.p_crossover
-        if self.p_subtree_mutation is not None :
-            self._program_cls.p_subtree_mutation = self.p_subtree_mutation
-        if self.p_hoist_mutation is not None:
-            self._program_cls.p_hoist_mutation = self.p_hoist_mutation
-        if self.p_point_mutation is not None:
-            self._program_cls.p_point_mutation = self.p_point_mutation
+        #Define private mutation probabilities according to user-input or _program_class
+        self._p_crossover = self.p_crossover if self.p_crossover is not None else\
+                            self._program_cls.p_crossover
+        self._p_subtree_mutation = self.p_subtree_mutation if self.p_subtree_mutation is not None else\
+                            self._program_cls.p_subtree_mutation
+        self._p_hoist_mutation = self.p_hoist_mutation if self.p_hoist_mutation is not None else\
+                            self._program_cls.p_hoist_mutation
+        self._p_point_mutation = self.p_point_mutation if self.p_point_mutation is not None else\
+                            self._program_cls.p_point_mutation
         
-        #call _program_cls method to check if user-define mutation_probs is correct
-        self._program_cls.validate_mutation_probs()
-
-        self._p_crossover = self._program_cls.p_crossover
-        self._p_subtree_mutation = self._program_cls.p_subtree_mutation
-        self._p_hoist_mutation = self._program_cls.p_hoist_mutation
-        self._p_point_mutation = self._program_cls.p_point_mutation
+        #Validate private mutation probabilities
+        self._program_cls.validate_mutation_probs(self._p_crossover, 
+                                                  self._p_subtree_mutation,
+                                                  self._p_hoist_mutation,
+                                                  self._p_point_mutation)
 
         self._method_probs = np.array([self._p_crossover,
                                        self._p_subtree_mutation,
@@ -851,10 +850,10 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
                  function_set=('add', 'sub', 'mul', 'div'),
                  metric='mean absolute error',
                  parsimony_coefficient=0.001,
-                 p_crossover=0.9,
-                 p_subtree_mutation=0.01,
-                 p_hoist_mutation=0.01,
-                 p_point_mutation=0.01,
+                 p_crossover= None,
+                 p_subtree_mutation= None,
+                 p_hoist_mutation= None,
+                 p_point_mutation= None,
                  p_point_replace=0.05,
                  max_samples=1.0,
                  feature_names=None,
@@ -863,7 +862,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
                  n_jobs=1,
                  verbose=0,
                  random_state=None,
-                 n_cols = 4,
+                 n_cols = 12,
                  n_rows = 1,
                  n_outputs = 1,
                  representation = 'tree'):
@@ -1148,10 +1147,10 @@ class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
                  transformer='sigmoid',
                  metric='log loss',
                  parsimony_coefficient=0.001,
-                 p_crossover=0.9,
-                 p_subtree_mutation=0.01,
-                 p_hoist_mutation=0.01,
-                 p_point_mutation=0.01,
+                 p_crossover=None,
+                 p_subtree_mutation=None,
+                 p_hoist_mutation=None,
+                 p_point_mutation=None,
                  p_point_replace=0.05,
                  max_samples=1.0,
                  class_weight=None,
@@ -1161,7 +1160,7 @@ class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
                  n_jobs=1,
                  verbose=0,
                  random_state=None,
-                 n_cols = 4,
+                 n_cols = 12,
                  n_rows = 1,
                  n_outputs = 1,
                  representation = 'tree'):
@@ -1469,10 +1468,10 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  function_set=('add', 'sub', 'mul', 'div'),
                  metric='pearson',
                  parsimony_coefficient=0.001,
-                 p_crossover=0.9,
-                 p_subtree_mutation=0.01,
-                 p_hoist_mutation=0.01,
-                 p_point_mutation=0.01,
+                 p_crossover=None,
+                 p_subtree_mutation=None,
+                 p_hoist_mutation=None,
+                 p_point_mutation=None,
                  p_point_replace=0.05,
                  max_samples=1.0,
                  feature_names=None,
@@ -1481,7 +1480,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  n_jobs=1,
                  verbose=0,
                  random_state=None,
-                 n_cols = 4,
+                 n_cols = 12,
                  n_rows = 1,
                  n_outputs = 1,
                  representation = 'tree'):

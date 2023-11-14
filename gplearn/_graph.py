@@ -64,11 +64,11 @@ class _Graph(_GeneticProgram):
             
         self.active_graph = self.build_active_graph()
 
-    # CLASS ATTRIBUTE
-    p_crossover=0.0
-    p_subtree_mutation=0.0
-    p_hoist_mutation=0.0
-    p_point_mutation=0.93
+    # CLASS ATTRIBUTE : Standart mutation probabilities
+    p_crossover = 0.0
+    p_subtree_mutation = 0.0
+    p_hoist_mutation = 0.0
+    p_point_mutation = 0.93
 
     #descriptor
     #aliases
@@ -79,12 +79,10 @@ class _Graph(_GeneticProgram):
     def program(self, value):
         self._genotype = value
 
-    # CLASS METHOD
-    @classmethod
-    def validate_mutation_probs(cls):
-        if int(cls.crossover) != 0\
-             or int(cls.p_subtree_mutation) != 0\
-             or int(cls.p_hoist_mutation) != 0:
+    # STATIC METHOD
+    @staticmethod
+    def validate_mutation_probs(p_crossover, p_subtree, p_hoist, p_point):
+        if int(p_crossover) != 0 or int(p_subtree) != 0 or int(p_hoist) != 0:
             raise ValueError("p_crossover, p_subtree_mutation, p_hoist_mutation should all be equals to 0")
 
     # METHOD
@@ -193,8 +191,8 @@ class _Graph(_GeneticProgram):
       """work in progress"""
 
     def _length(self):
-        """Calculates the lenght of the genotype."""
-        return len(self._genotype)
+        """Calculates the lenght of the active_graph."""
+        return len(self.active_graph)
 
     def execute(self, X):
         """Execute the program according to X | spec : max_arities = 2.

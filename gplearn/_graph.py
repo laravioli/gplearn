@@ -64,14 +64,14 @@ class _Graph(_GeneticProgram):
             
         self.active_graph = self.build_active_graph()
 
-    # CLASS ATTRIBUTE : Standart mutation probabilities
+    # CLASS ATTRIBUTE : Define default mutation probability values
     p_crossover = 0.0
     p_subtree_mutation = 0.0
     p_hoist_mutation = 0.0
     p_point_mutation = 0.93
 
-    #descriptor
-    #aliases
+    # descriptor
+    # aliases : _genotype is accessed with the name program outside the class
     @property
     def program(self): return self._genotype
 
@@ -83,7 +83,7 @@ class _Graph(_GeneticProgram):
     @staticmethod
     def validate_mutation_probs(p_crossover, p_subtree, p_hoist, p_point):
         if int(p_crossover) != 0 or int(p_subtree) != 0 or int(p_hoist) != 0:
-            raise ValueError("p_crossover, p_subtree_mutation, p_hoist_mutation should all be equals to 0")
+            raise ValueError("Graph doesn't have crossover, subtree or hoist mutations, probabilities should be equals to 0")
 
     # METHOD
     def build_genotype(self, random_state):
@@ -205,7 +205,8 @@ class _Graph(_GeneticProgram):
 
         Returns
         -------
-        y_hats : array-like, shape = [n_samples]
+        y_hats : array-like, shape = (n_samples,) if n_outputs == 1 
+                                     else (n_outputs, n_samples)
             The result of executing the program on X.
         """
 
@@ -228,7 +229,7 @@ class _Graph(_GeneticProgram):
             output[i] = nodes_output[self._genotype.outputs[i]].copy()
 
         if self.n_outputs == 1:
-            return np.squeeze(output)
+            return output[0]
         else:
             return output
     

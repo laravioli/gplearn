@@ -151,7 +151,7 @@ class _Tree(_GeneticProgram):
             # Create a naive random program
             self.program = self.build_program(random_state)
 
-    # CLASS ATTRIBUTE
+    # CLASS ATTRIBUTE : Define default mutation probability values
     p_crossover=0.9
     p_subtree_mutation=0.01
     p_hoist_mutation=0.01

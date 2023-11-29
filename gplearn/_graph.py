@@ -230,6 +230,10 @@ class _Graph(_GeneticProgram):
                     edges += ('%d -> %s ;\n' % (node_num,
                                                 feature_name + '_%d' % node_num))
         return output + edges + '}'
+
+    def pickle_save_graph(self, filename):
+        with open(filename, 'wb') as outp:  # Overwrites any existing file.
+            pickle.dump(self, outp, pickle.HIGHEST_PROTOCOL)
                     
     def _length(self):
         """Calculates the lenght of the active_graph."""

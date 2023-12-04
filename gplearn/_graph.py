@@ -84,6 +84,11 @@ class _Graph(_GeneticProgram):
     def validate_mutation_probs(p_crossover, p_subtree, p_hoist, p_point):
         if int(p_crossover) != 0 or int(p_subtree) != 0 or int(p_hoist) != 0:
             raise ValueError("Graph doesn't have crossover, subtree or hoist mutations, probabilities should be equals to 0")
+    
+    @staticmethod
+    def lisp_to_genotype(lisp):
+        print('a')
+        # test_gp = [mul2, div2, 8, 1, sub2, 9, 2]
 
     # METHOD
     def build_genotype(self, random_state):
@@ -196,39 +201,38 @@ class _Graph(_GeneticProgram):
             The Graphviz script to plot the graph representation of the program.
 
         """
-        output = 'digraph program {\nnode [style=filled]\n'
+        output = 'digraph program {\nnode [style=filled, ordering=out];\n'
         edges = ''
-        for graph_output in self._genotype.outputs:
-            if graph_output < self.n_features:
-                fill = '#60a6f6'
-                if self.feature_names is None:
-                    feature_name = 'X%d' % graph_output
-                else:
-                    feature_name = self.feature_names[graph_output]
-                output += ('%s [label="%s", fillcolor="%s"] ;\n'
-                            % (feature_name, feature_name, fill))
 
-        for node_num in self.active_graph:
-            node_name = self.function_set[self._genotype.nodes['f'][node_num]].name
-            node_arity = self.function_set[self._genotype.nodes['f'][node_num]].arity
-            fill = '#136ed4'
-            output += ('%d [label="%s", fillcolor="%s"] ;\n'
-                        % (node_num, node_name, fill))
-            for node_input in ['x','y'][:node_arity]:
-                node_input_value = self._genotype.nodes[node_input][node_num]
-                if node_input_value >= self.n_features:
-                    edges += ('%d -> %d ;\n' % (node_num,
-                                                node_input_value - self.n_features))
+        for feature in range(self.n_features):
+            if feature in self._genotype.outputs:
+                if self.feature_names is None:
+                    feature_name = 'X%d' % feature
                 else:
-                    fill = '#60a6f6'
+                    feature_name = self.feature_names[feature] 
+                output += ('%d [label="%s", fillcolor="#60a6f6"];\n'
+                            % (feature, feature_name))
+
+        for node in self.active_graph:
+            node_name = self.function_set[self._genotype.nodes['f'][node]].name
+            node_arity = self.function_set[self._genotype.nodes['f'][node]].arity
+            output += ('%d [label="%s", fillcolor="#136ed4"];\n'
+                        % (node + self.n_features, node_name))
+            for node_input in ['x','y'][:node_arity]:
+                node_input_value = self._genotype.nodes[node_input][node]
+                if node_input_value >= self.n_features:
+                    edges += ('%d -> %d;\n' % (node + self.n_features,
+                                               node_input_value))
+                else:
+                    edges += ('%d -> X%d%d;\n' % (node + self.n_features,
+                                                  node + self.n_features,
+                                                  node_input_value))
                     if self.feature_names is None:
                         feature_name = 'X%d' % node_input_value
                     else:
-                        feature_name = self.feature_names[node_input_value] 
-                    output += ('%s [label="%s", fillcolor="%s"] ;\n'
-                                % (feature_name + '_%d' % node_num, feature_name, fill))
-                    edges += ('%d -> %s ;\n' % (node_num,
-                                                feature_name + '_%d' % node_num))
+                        feature_name = self.feature_names[node_input_value]
+                    output += ('X%d%d [label="%s", fillcolor="#60a6f6"];\n'
+                                % (node + self.n_features, node_input_value, feature_name))
         return output + edges + '}'
 
     def pickle_save_graph(self, filename):

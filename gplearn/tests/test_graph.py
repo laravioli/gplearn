@@ -71,12 +71,12 @@ def test_graph_init_method():
     
     #genotype
     assert(isinstance(program._genotype, _Genotype))
-    assert(len(program._genotype.nodes['x']) == program.n_cols * program.n_rows)
-    assert(type(program._genotype.outputs[0]) == np.int64)
+    assert(len(program._genotype.genes_inp[0]) == program.n_cols * program.n_rows)
+    assert(type(program._genotype.genes_out[0]) == np.int64)
     
-    #active_graph
-    assert1 = len(program.active_graph) == 0
-    assert2 = program._genotype.outputs[0] >= program.n_features
+    #active_nodes
+    assert1 = len(program.active_nodes) == 0
+    assert2 = program._genotype.genes_out[0] >= program.n_features
     assert(assert1 or assert2)
 
 def test_validate_genotype():
@@ -93,9 +93,10 @@ def test_validate_genotype():
     random_state = check_random_state(415)
 
     # Test for a small program
-    nodes = {'x' : [8,9,10,0], 'y' : [1,2,11,0], 'f':[3,1,2,0]}
-    output = [12]
-    test_genotype = _Genotype(nodes = nodes, outputs= output)
+    genes_inp = np.array([[8,9,10,0], [1,2,11,0]])
+    genes_func = np.array([3,1,2,0])
+    genes_out = [12]
+    test_genotype = _Genotype(genes_inp= genes_inp, genes_func= genes_func, genes_out= genes_out)
 
     # This one should be fine
     _ = _Graph(function_set, n_features,
@@ -103,7 +104,7 @@ def test_validate_genotype():
                        n_cols = n_cols, n_rows = n_rows, n_outputs = n_outputs,
                        program = test_genotype)
     # Now try one that shouldn't be
-    test_genotype.nodes['x'][1] = 24
+    test_genotype.genes_inp[0][1] = 24
     assert_raises((ValueError,IndexError), _Graph, function_set,
                   n_features, metric, p_point_replace, 
                   parsimony_coefficient, random_state,
@@ -125,9 +126,10 @@ def test_execute():
     random_state = check_random_state(415)
 
     # Test for a small program
-    nodes = {'x' : [8,9,10,0], 'y' : [1,2,11,0], 'f':[3,1,2,0]}
-    output = [12]
-    test_genotype = _Genotype(nodes = nodes, outputs= output)
+    genes_inp = np.array([[8,9,10,0], [1,2,11,0]])
+    genes_func = np.array([3,1,2,0])
+    genes_out = [12]
+    test_genotype = _Genotype(genes_inp= genes_inp, genes_func= genes_func, genes_out= genes_out)
 
     # test_gp = [mul2, div2, 8, 1, sub2, 9, .5]
 
@@ -153,10 +155,10 @@ def test_execute_with_one_arity_functions():
     gp = _Graph(random_state=random_state, **params)
     X = np.reshape(random_state.uniform(size=50), (5, 10))
     gp.execute(X)
-    assert(np.array([params['function_set'][elt].arity == 1 for elt in gp._genotype.nodes['f']]).any())
+    assert(np.array([params['function_set'][elt].arity == 1 for elt in gp._genotype.genes_func]).any())
 
-def test_validate_active_graph():
-    """Check if active_graph is immutable when we conserve active graph"""
+def test_validate_active_nodes():
+    """Check if active_nodes is immutable when we conserve active graph"""
 
     params = {'function_set': [add2, sub2, mul2, div2, sqrt1, log1, abs1, max2,
                                min2],
@@ -170,8 +172,8 @@ def test_validate_active_graph():
               }
     random_state = check_random_state(415)
     graph1 = _Graph(random_state=random_state, **params)
-    active_graph1 = graph1.active_graph
-    assert(len(active_graph1 >= 4))
+    active_nodes1 = graph1.active_nodes
+    assert(len(active_nodes1) >= 3)
 
     genotype1 = graph1._genotype
     genotype2 = copy.deepcopy(genotype1)
@@ -179,19 +181,21 @@ def test_validate_active_graph():
     gpos = 0
     for c in range(graph1.n_cols):
         for _ in range(graph1.n_rows):
-            if gpos not in active_graph1:
-                genotype2.nodes['x'][gpos] = random_state.randint(\
+            if gpos not in [an.idx - graph1.n_features for an in active_nodes1]:
+                genotype2.genes_inp[0][gpos] = random_state.randint(\
                     graph1.n_features + c * graph1.n_rows)
-                genotype2.nodes['y'][gpos] = random_state.randint(\
+                genotype2.genes_inp[1][gpos] = random_state.randint(\
                     graph1.n_features + c * graph1.n_rows)
-                genotype2.nodes['f'][gpos] = random_state.randint(\
+                genotype2.genes_func[gpos] = random_state.randint(\
                     len(graph1.function_set))
             gpos = gpos + 1
 
     program2 = _Graph(random_state=random_state, program= genotype2, **params)
-    active_graph2 = program2.active_graph
+    active_nodes2 = program2.active_nodes
 
-    assert_array_equal(active_graph1, active_graph2)
+    array1 = [an.idx for an in active_nodes1]
+    array2 = [an.idx for an in active_nodes2]
+    assert_array_equal(array1, array2)
 
 def test_point_mutation():
     '''test if mutations are done correctly'''
@@ -209,16 +213,16 @@ def test_point_mutation():
     random_state = check_random_state(415)
     graph = _Graph(random_state=random_state, **params)
     genotype = graph._genotype
-    nodes_x = genotype.nodes['x']
-    nodes_y = genotype.nodes['y']
-    nodes_f = genotype.nodes['f']
-    outputs = genotype.outputs
+    nodes_x = genotype.genes_inp[0]
+    nodes_y = genotype.genes_inp[1]
+    nodes_f = genotype.genes_func
+    outputs = genotype.genes_out
 
     genotype_mutated , mutation = graph.point_mutation(random_state)
-    nodes_x_mutated = genotype_mutated.nodes['x']
-    nodes_y_mutated = genotype_mutated.nodes['y']
-    nodes_f_mutated = genotype_mutated.nodes['f']
-    outputs_mutated = genotype_mutated.outputs
+    nodes_x_mutated = genotype_mutated.genes_inp[0]
+    nodes_y_mutated = genotype_mutated.genes_inp[1]
+    nodes_f_mutated = genotype_mutated.genes_func
+    outputs_mutated = genotype_mutated.genes_out
 
     assert_array_equal(np.where(nodes_x != nodes_x_mutated)[0], mutation[0])
     assert_array_equal(np.where(nodes_y != nodes_y_mutated)[0], mutation[1])

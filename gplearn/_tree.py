@@ -116,7 +116,6 @@ class _Tree(_GeneticProgram):
         The number of functions and terminals in the program.
 
     """
-    #To_discuss: change positional argument order : _GeneticProgram -> _Tree
     def __init__(self,
                  function_set,
                  arities,

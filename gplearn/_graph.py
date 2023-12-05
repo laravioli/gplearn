@@ -8,28 +8,27 @@ import numpy as np
 from sklearn.utils.random import sample_without_replacement
 
 from .functions import _Function
-from .utils import check_random_state
 from ._program import _GeneticProgram
 
 class _Genotype:
 
-    def __init__(self, genes_inp, genes_func, genes_out):
-        self.genes_inp = genes_inp
-        self.genes_func= genes_func
-        self.genes_out = genes_out
+    def __init__(self, inp_genes, func_genes, out_genes):
+        self.inp_genes = inp_genes
+        self.func_genes = func_genes
+        self.out_genes = out_genes
 
     def __str__(self):
         output = '['
-        for gene in range(len(self.genes_inp[0])):
-            for var in range(len(self.genes_inp)):
-                if isinstance(self.genes_inp[var][gene], int):
-                    output += '%d ' % self.genes_inp[var][gene]
+        for gene in range(len(self.inp_genes[0])):
+            for entry in range(len(self.inp_genes)):
+                if isinstance(self.inp_genes[entry][gene], (int, np.int_)):
+                    output += '%d ' % self.inp_genes[entry][gene]
                 else:
-                    output += '%.3f ' % self.genes_inp[var][gene]
-            output += '%d' % (self.genes_func[gene])
+                    output += '%.3f ' % self.inp_genes[entry][gene]
+            output += '%d' % (self.func_genes[gene])
             output += '|'
-        for gene in range(len(self.genes_out)):
-            output += '%d ' % self.genes_out[gene]
+        for gene in range(len(self.out_genes)):
+                output += ' %d' % self.out_genes[gene]
         return output + ']'
 
 class _Node:
@@ -42,11 +41,11 @@ class _Node:
     def __str__(self):
         args = ''
         for arg in self.args:
-            if isinstance(arg, int):
+            if isinstance(arg, (int,np.int_)):
                 args += '%d ' % arg
             else:
                 args += '%.3f ' % arg
-        return 'idx: %d , args: %s,name: %s' % (self.idx, args, self.function.name)
+        return 'idx: %d , args: %s,function: %s' % (self.idx, args, self.function.name)
 
 class _Graph(_GeneticProgram):
 
@@ -82,20 +81,20 @@ class _Graph(_GeneticProgram):
         self.n_rows = n_rows
         self.n_outputs = n_outputs
         self.n_nodes = n_cols * n_rows
-        self.max_arity = max([f.arity for f in self.function_set])
+        self._max_arity = max([f.arity for f in self.function_set])
 
         if self._genotype is not None:
             self.validate_genotype()
         else:
             self._genotype = self.build_genotype(random_state)
-            
+
         self.active_nodes = self.build_active_nodes()
 
     # CLASS ATTRIBUTE : Define default mutation probability values
     p_crossover = 0.0
     p_subtree_mutation = 0.0
     p_hoist_mutation = 0.0
-    p_point_mutation = 0.93
+    p_point_mutation = 0.8
 
     # descriptor
     # aliases : _genotype is accessed with the name program outside the class
@@ -121,7 +120,7 @@ class _Graph(_GeneticProgram):
             The genotype of the program. Nodes are subscribed in Cmajor style
 
         """
-        genes_i = np.zeros((self.max_arity, self.n_nodes), dtype= int)
+        genes_i = np.zeros((self._max_arity, self.n_nodes), dtype= int)
         genes_f = np.zeros(self.n_nodes, dtype= int)
         genes_o = np.zeros(self.n_outputs, dtype= int)
 
@@ -142,31 +141,34 @@ class _Graph(_GeneticProgram):
     def validate_genotype(self):
         """Check that the embedded genotype in the graph is valid."""
 
-        if len(self._genotype.genes_out) != self.n_outputs:
+        # dimension check
+        if len(self._genotype.out_genes) != self.n_outputs:
             raise ValueError('lenght of output genes must equal %d' % self.n_outputs)
 
-        if len(self._genotype.genes_func) != self.n_nodes:
+        if len(self._genotype.func_genes) != self.n_nodes:
             raise ValueError('lenght of function genes must equal %d' % len(self.function_set))
 
-        if len(self._genotype.genes_inp) != self.max_arity:
-            raise ValueError('The genotype must provide %d input lists' % self.max_arity)
-
-        for var in range(len(self._genotype.genes_inp)):
-            if len(self._genotype.genes_inp[var]) != self.n_nodes:
+        for var in range(len(self._genotype.inp_genes)):
+            if len(self._genotype.inp_genes[var]) != self.n_nodes:
                 raise ValueError('lenght of input genes must equal %d' % self.n_nodes)
 
-        for gene in self._genotype.genes_out:
+        if len(self._genotype.inp_genes) != self._max_arity:
+            raise ValueError('The genotype must provide %d input lists' % self._max_arity)
+
+        # values range check
+        for gene in self._genotype.out_genes:
             if gene not in range(self.n_features + self.n_nodes):
                 raise ValueError('output genes must be in range(%d)' % self.n_features + self.n_nodes)
 
-        for gene in self._genotype.genes_func:
+        for gene in self._genotype.func_genes:
             if gene not in range(len(self.function_set)):
                 raise ValueError('function genes must be in range(%d)' % len(self.function_set))
 
-        for var in range(len(self._genotype.genes_inp)):
+        for var in range(len(self._genotype.inp_genes)):
             for i in range(self.n_nodes):
+                gene = self._genotype.inp_genes[var][i]
                 column = i // self.n_rows
-                if self._genotype.genes_inp[var][i] not in range(self.n_features + column * self.n_rows):
+                if isinstance(gene,(int, np.int_)) and gene not in range(self.n_features + column * self.n_rows):
                     raise ValueError ('input genes must respect the graph l-value (%d)' % self.n_cols)
 
     def build_active_nodes(self):
@@ -182,18 +184,18 @@ class _Graph(_GeneticProgram):
         nodes_to_evaluate = np.zeros(self.n_nodes, dtype=bool)
 
         for i in range(self.n_outputs):
-            if self._genotype.genes_out[i] >= self.n_features:
-                nodes_to_evaluate[self._genotype.genes_out[i] - self.n_features] = True
+            if self._genotype.out_genes[i] >= self.n_features:
+                nodes_to_evaluate[self._genotype.out_genes[i] - self.n_features] = True
 
         
         for p in reversed(range(self.n_nodes)):
             if nodes_to_evaluate[p]:
                 args = []
-                function = self.function_set[self._genotype.genes_func[p]]
+                function = self.function_set[self._genotype.func_genes[p]]
                 for var in range(function.arity):
-                    arg = self._genotype.genes_inp[var][p]
+                    arg = self._genotype.inp_genes[var][p]
                     args.append(arg)
-                    if arg >= self.n_features:
+                    if isinstance(arg, (int, np.int_)) and arg >= self.n_features:
                         nodes_to_evaluate[arg - self.n_features] = True
                 active_node = _Node(p + self.n_features, args, function)
                 active_nodes.append(active_node)
@@ -207,7 +209,7 @@ class _Graph(_GeneticProgram):
         active_nodes = ''
         for active_node in self.active_nodes:
             active_nodes += active_node.__str__() + '\n'
-        return genotype + active_nodes
+        return 'genotype:\n' + genotype + 'active nodes:\n' + active_nodes
 
     def export_graphviz(self):
         """Returns a string, Graphviz script for visualizing the program.
@@ -222,11 +224,11 @@ class _Graph(_GeneticProgram):
         edges = ''
 
         for feature in range(self.n_features):
-            if feature in self._genotype.genes_out:
+            if feature in self._genotype.out_genes:
                 if self.feature_names is None:
                     feature_name = 'X%d' % feature
                 else:
-                    feature_name = self.feature_names[feature] 
+                    feature_name = self.feature_names[feature]
                 output += ('%d [label="%s", fillcolor="#60a6f6"];\n'
                             % (feature, feature_name))
 
@@ -234,19 +236,28 @@ class _Graph(_GeneticProgram):
             output += ('%d [label="%s", fillcolor="#136ed4"];\n'
                         % (node.idx, node.function.name))
             for arg in node.args:
-                if arg >= self.n_features:
+                if isinstance(arg,(int,np.int_)) and arg >= self.n_features:
                     edges += ('%d -> %d;\n' % (node.idx,
                                                arg))
                 else:
-                    edges += ('%d -> X%d%d;\n' % (node.idx,
-                                                  node.idx,
-                                                  arg))
-                    if self.feature_names is None:
-                        feature_name = 'X%d' % arg
+                    if isinstance(arg,(int,np.int_)):
+                        edges += ('%d -> X%d%d;\n' % (node.idx,
+                                                        node.idx,
+                                                        arg))
+                        if self.feature_names is None:
+                            feature_name = 'X%d' % arg
+                        else:
+                            feature_name = self.feature_names[arg]
+                        output += ('X%d%d [label="%s", fillcolor="#60a6f6"];\n'
+                                    % (node.idx, arg, feature_name))
                     else:
-                        feature_name = self.feature_names[arg]
-                    output += ('X%d%d [label="%s", fillcolor="#60a6f6"];\n'
-                                % (node.idx, arg, feature_name))
+                        id_ = str(arg).replace('.','')
+                        edges += ('%d -> F%d%s;\n' % (node.idx,
+                                                        node.idx,
+                                                        id_))
+                        output += ('F%d%s [label="%.3f", fillcolor="#60a6f6"];\n'
+                                    % (node.idx, id_, arg))
+
         return output + edges + '}'
 
     def pickle_save_graph(self, filename):
@@ -278,17 +289,21 @@ class _Graph(_GeneticProgram):
         nodes_output = np.zeros((self.n_features + self.n_nodes, X.shape[0]))
         output = np.zeros((self.n_outputs, X.shape[0]))
 
-        for i in range(self.n_features):
+        for i in range(X.shape[1]):
             nodes_output[i] = X[:,i]
 
         for active_node in reversed(self.active_nodes):
             args = np.zeros((len(active_node.args), X.shape[0]))
             for i in range(len(args)):
-                args[i] = nodes_output[active_node.args[i]]
-                nodes_output[active_node.idx] = active_node.function(*args)
+                argi = active_node.args[i]
+                if isinstance(argi,(int,np.int_)):
+                    args[i] = nodes_output[argi]
+                else:
+                    args[i] = np.repeat(argi, X.shape[0])
+            nodes_output[active_node.idx] = active_node.function(*args)
 
         for i in range(self.n_outputs):
-            output[i] = nodes_output[self._genotype.genes_out[i]].copy()
+            output[i] = nodes_output[self._genotype.out_genes[i]].copy()
 
         if self.n_outputs == 1:
             return output[0]
@@ -338,36 +353,30 @@ class _Graph(_GeneticProgram):
         genotype = deepcopy(self._genotype)
 
         # Roll a dice for each gene
-        node_mut = random_state.uniform(size = (3,self.n_nodes))
-        output_mut = random_state.uniform(size = self.n_outputs)
+        dice_1 = random_state.uniform(size = (self._max_arity + 1,self.n_nodes))
+        dice_2 = random_state.uniform(size = self.n_outputs)
 
         # Get genes to mutate
-        mutate_x = np.where(node_mut[0] < self.p_point_replace)[0]
-        mutate_y = np.where(node_mut[1] < self.p_point_replace)[0]
-        mutate_f = np.where(node_mut[2] < self.p_point_replace)[0]
-        mutate_o = np.where(output_mut < self.p_point_replace)[0]
+        mutate_inp = [np.where(dice_1[i] < self.p_point_replace)[0] for i in range(self._max_arity)]
+        mutate_func = np.where(dice_1[self._max_arity] < self.p_point_replace)[0]
+        mutate_out = np.where(dice_2 < self.p_point_replace)[0]
 
         # Apply mutation on genotype
-        for gene in mutate_x:
-            column = gene // self.n_rows
-            replacement = random_state.randint(self.n_features + column * self.n_rows)
-            genotype.genes_inp[0][gene] = replacement
-        
-        for gene in mutate_y:
-            column = gene // self.n_rows
-            replacement = random_state.randint(self.n_features + column * self.n_rows)
-            genotype.genes_inp[1][gene] = replacement
+        for i in range(self._max_arity):
+            for gene in mutate_inp[i]:
+                column = gene // self.n_rows
+                replacement = random_state.randint(self.n_features + column * self.n_rows)
+                genotype.inp_genes[i][gene] = replacement
 
-        for gene in mutate_f:
+        for gene in mutate_func:
             replacement = random_state.randint(len(self.function_set))
-            genotype.genes_func[gene] = replacement
+            genotype.func_genes[gene] = replacement
 
-        for gene in mutate_o:
+        for gene in mutate_out:
             replacement = random_state.randint(self.n_outputs)
-            genotype.genes_out[gene] = replacement
+            genotype.out_genes[gene] = replacement
 
-        mutate = [mutate_x, mutate_y, mutate_f, mutate_o]
-
+        mutate = [list(mut) for mut in mutate_inp + [mutate_func] + [mutate_out]]
         return genotype, mutate
 
     # STATIC METHOD
@@ -375,8 +384,3 @@ class _Graph(_GeneticProgram):
     def validate_mutation_probs(p_crossover, p_subtree, p_hoist, p_point):
         if int(p_crossover) != 0 or int(p_subtree) != 0 or int(p_hoist) != 0:
             raise ValueError("Graph doesn't have crossover, subtree or hoist mutations, probabilities should be equals to 0")
-    
-    @staticmethod
-    def lisp_to_genotype(lisp):
-        print('a')
-        # test_gp = [mul2, div2, 8, 1, sub2, 9, 2]

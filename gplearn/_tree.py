@@ -9,10 +9,8 @@ It is used as a _GeneticProgram subclass for creating and evolving graph.
 from copy import copy
 
 import numpy as np
-from sklearn.utils.random import sample_without_replacement
 
 from .functions import _Function
-from .utils import check_random_state
 from ._program import _GeneticProgram
 
 class _Tree(_GeneticProgram):

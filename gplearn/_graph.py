@@ -2,22 +2,37 @@
 It is used as a _GeneticProgram subclass for creating and evolving graph.
 """
 
-from copy import copy, deepcopy
-
 import numpy as np
-from sklearn.utils.random import sample_without_replacement
-
+from copy import copy, deepcopy
 from .functions import _Function
 from ._program import _GeneticProgram
 
 class _Genotype:
 
+    """data structure used by the class _Graph int the :mod:`gplearn._graph` module.
+    It contains the genetic material needed for graph evolution. Genes are the genetic material of graph nodes.  
+    They are stored in a flattened manner. The format and value of the genes expected in a graph are described 
+    in the validate_genotype method of the _Graph class.
+
+    Parameters
+    ----------
+    inp_genes : array-like
+        Input genes for graph nodes.
+
+    func_genes : list
+        Function genes for graph nodes.
+
+    out_genes : list
+        Output genes. Code anticipates more than one output.
+
+    """
     def __init__(self, inp_genes, func_genes, out_genes):
         self.inp_genes = inp_genes
         self.func_genes = func_genes
         self.out_genes = out_genes
 
     def __str__(self):
+        """Used to overlad `print` _Graph method"""
         output = '['
         for gene in range(len(self.inp_genes[0])):
             for entry in range(len(self.inp_genes)):
@@ -31,14 +46,30 @@ class _Genotype:
                 output += ' %d' % self.out_genes[gene]
         return output + ']'
 
-class _Node:
+class _ActiveNode:
 
+    """Represent the active nodes, those that will be used during graph execution.
+
+    Parameters
+    ----------
+    idx : int
+        Index of node. As data inputs are considered nodes, the node index starts at n_features,
+        dimension of input vectors.
+
+    args : list
+        Node inputs. They are extracted from the genotype. Argument length depends on node function
+
+    function : _Function
+        Node function. It belongs to the graph's function_set
+
+    """
     def __init__(self, idx, args, function):
         self.idx = idx
         self.args = args
         self.function = function
 
     def __str__(self):
+        """Used to overlad `print` _Graph method"""
         args = ''
         for arg in self.args:
             if isinstance(arg, (int,np.int_)):
@@ -49,10 +80,60 @@ class _Node:
 
 class _Graph(_GeneticProgram):
 
-    """A program-like representation of the evolved program.
+    """A cartesian graph representation of the evolved program.
 
     This is the underlying data-structure used by the public classes in the
     :mod:`gplearn.genetic` module. It should not be used directly by the user.
+
+    Parameters
+    ----------
+    function_set : list
+        A list of valid functions to use in the program.
+
+    n_features : int
+        The number of features in `X`.
+
+    metric : _Fitness object
+        The raw fitness metric.
+
+    p_point_replace : float
+        The probability that any given node will be mutated during point
+        mutation.
+
+    parsimony_coefficient : float
+        This constant penalizes large programs by adjusting their fitness to
+        be less favorable for selection. Larger values penalize the program
+        more which can control the phenomenon known as 'bloat'. Bloat is when
+        evolution is increasing the size of programs without a significant
+        increase in fitness, which is costly for computation time and makes for
+        a less understandable final result. This parameter may need to be tuned
+        over successive runs.
+
+   random_state : RandomState instance
+        The random number generator. Note that ints, or None are not allowed.
+        The reason for this being passed is that during parallel evolution the
+        same program object may be accessed by multiple parallel processes.
+
+    n_cols : int (default = 40)
+        Define the width of the graph node grid
+
+    n_rows : int (default = 1)
+        Define the height of the graph node grid
+
+    n_outputs : int (default = 1)
+        Define the number of outputs. Gplearn currently supports only one output
+
+    program : _Genotype, optional (default=None)
+        The graph's genetic material. If None, a new naive
+        random genotype will be grown. If provided, it will be validated.
+
+    Attributes
+    ----------
+    _max_arity : int
+        Define the maximum input a node can have.
+
+    active_nodes : list[_ActiveNode]
+        Store all active nodes. Used in graph execution and representation with graphviz.
 
     """
 
@@ -117,30 +198,31 @@ class _Graph(_GeneticProgram):
         Returns
         -------
         genotype : _Genotype instance
-            The genotype of the program. Nodes are subscribed in Cmajor style
+            The genotype of the program.
 
         """
-        genes_i = np.zeros((self._max_arity, self.n_nodes), dtype= int)
-        genes_f = np.zeros(self.n_nodes, dtype= int)
-        genes_o = np.zeros(self.n_outputs, dtype= int)
+        inp_genes = np.zeros((self._max_arity, self.n_nodes), dtype= int)
+        func_genes = np.zeros(self.n_nodes, dtype= int)
+        out_genes = np.zeros(self.n_outputs, dtype= int)
 
         gpos = 0
         for c in range(self.n_cols):
             for _ in range(self.n_rows):
-                for i in range(len(genes_i)):
-                    genes_i[i][gpos] = random_state.randint(self.n_features + c * self.n_rows)
-                    genes_i[i][gpos] = random_state.randint(self.n_features + c * self.n_rows)
-                genes_f[gpos] = random_state.randint(len(self.function_set))
+                for i in range(len(inp_genes)):
+                    inp_genes[i][gpos] = random_state.randint(self.n_features + c * self.n_rows)
+                    inp_genes[i][gpos] = random_state.randint(self.n_features + c * self.n_rows)
+                func_genes[gpos] = random_state.randint(len(self.function_set))
                 gpos = gpos + 1
 
         for o in range(self.n_outputs):
-            genes_o[o] = random_state.randint(self.n_features + self.n_nodes)
+            out_genes[o] = random_state.randint(self.n_features + self.n_nodes)
 
-        return _Genotype(genes_i, genes_f, genes_o)
+        return _Genotype(inp_genes, func_genes, out_genes)
 
     def validate_genotype(self):
-        """Check that the embedded genotype in the graph is valid."""
-
+        """Check that the embedded genotype in the graph is valid.
+        
+        """
         # dimension check
         if len(self._genotype.out_genes) != self.n_outputs:
             raise ValueError('lenght of output genes must equal %d' % self.n_outputs)
@@ -155,7 +237,7 @@ class _Graph(_GeneticProgram):
         if len(self._genotype.inp_genes) != self._max_arity:
             raise ValueError('The genotype must provide %d input lists' % self._max_arity)
 
-        # values range check
+        # value ranges check
         for gene in self._genotype.out_genes:
             if gene not in range(self.n_features + self.n_nodes):
                 raise ValueError('output genes must be in range(%d)' % self.n_features + self.n_nodes)
@@ -197,14 +279,15 @@ class _Graph(_GeneticProgram):
                     args.append(arg)
                     if isinstance(arg, (int, np.int_)) and arg >= self.n_features:
                         nodes_to_evaluate[arg - self.n_features] = True
-                active_node = _Node(p + self.n_features, args, function)
+                active_node = _ActiveNode(p + self.n_features, args, function)
                 active_nodes.append(active_node)
 
         return active_nodes
         
     def __str__(self):
-        """Overloads `print` output of the graph to display his genotype and active nodes."""
-
+        """Overloads `print` output of the graph to display his genotype and active nodes.
+        
+        """
         genotype = self._genotype.__str__() + '\n'
         active_nodes = ''
         for active_node in self.active_nodes:
@@ -261,11 +344,17 @@ class _Graph(_GeneticProgram):
         return output + edges + '}'
 
     def pickle_save_graph(self, filename):
+        """
+        method to store graph object
+
+        """
         with open(filename, 'wb') as outp:  # Overwrites any existing file.
             pickle.dump(self, outp, pickle.HIGHEST_PROTOCOL)
                     
     def _length(self):
-        """Calculates the lenght of the active_nodes."""
+        """Calculates the lenght of active nodes.
+        
+        """
         return len(self.active_nodes)
 
     length_ = property(_length)
@@ -299,7 +388,7 @@ class _Graph(_GeneticProgram):
                 if isinstance(argi,(int,np.int_)):
                     args[i] = nodes_output[argi]
                 else:
-                    args[i] = np.repeat(argi, X.shape[0])
+                    args[i] = np.repeat(argi, X.shape[0])            
             nodes_output[active_node.idx] = active_node.function(*args)
 
         for i in range(self.n_outputs):
@@ -382,5 +471,9 @@ class _Graph(_GeneticProgram):
     # STATIC METHOD
     @staticmethod
     def validate_mutation_probs(p_crossover, p_subtree, p_hoist, p_point):
+        """
+        Check if user-defined value of specific _Tree mutation are tuned to 0.
+        
+        """
         if int(p_crossover) != 0 or int(p_subtree) != 0 or int(p_hoist) != 0:
             raise ValueError("Graph doesn't have crossover, subtree or hoist mutations, probabilities should be equals to 0")

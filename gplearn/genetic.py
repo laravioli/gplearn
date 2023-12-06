@@ -202,7 +202,7 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                  n_jobs=1,
                  verbose=0,
                  random_state=None,
-                 n_cols = 12, 
+                 n_cols = 40, 
                  n_rows = 1, 
                  n_outputs = 1,
                  representation = 'tree'):
@@ -862,7 +862,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
                  n_jobs=1,
                  verbose=0,
                  random_state=None,
-                 n_cols = 12,
+                 n_cols = 40,
                  n_rows = 1,
                  n_outputs = 1,
                  representation = 'tree'):
@@ -1160,7 +1160,7 @@ class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
                  n_jobs=1,
                  verbose=0,
                  random_state=None,
-                 n_cols = 12,
+                 n_cols = 40,
                  n_rows = 1,
                  n_outputs = 1,
                  representation = 'tree'):
@@ -1480,7 +1480,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  n_jobs=1,
                  verbose=0,
                  random_state=None,
-                 n_cols = 12,
+                 n_cols = 40,
                  n_rows = 1,
                  n_outputs = 1,
                  representation = 'tree'):
